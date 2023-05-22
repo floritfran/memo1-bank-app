@@ -1,9 +1,10 @@
 package com.aninfo.service;
 
-import com.aninfo.exceptions.DepositNegativeSumException;
-import com.aninfo.exceptions.InsufficientFundsException;
+import com.aninfo.exceptions.*;
 import com.aninfo.model.Account;
+import com.aninfo.model.Transaction;
 import com.aninfo.repository.AccountRepository;
+import com.aninfo.repository.TransactionRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -16,6 +17,8 @@ public class AccountService {
 
     @Autowired
     private AccountRepository accountRepository;
+    @Autowired
+    private TransactionRepository transactionRepository;
 
     public Account createAccount(Account account) {
         return accountRepository.save(account);
@@ -58,6 +61,15 @@ public class AccountService {
             throw new DepositNegativeSumException("Cannot deposit negative sums");
         }
 
+        if (sum >= 2000) {
+            Double extra = sum * 0.1;
+            if (extra <= 500) {
+                sum += extra;
+            } else {
+                sum += 500;
+            }
+        }
+
         Account account = accountRepository.findAccountByCbu(cbu);
         account.setBalance(account.getBalance() + sum);
         accountRepository.save(account);
@@ -65,4 +77,40 @@ public class AccountService {
         return account;
     }
 
+    public Transaction createTransaction(Transaction transaction) {
+        Optional<Account> optionalAccount = accountRepository.findById(transaction.getCbu());
+        if (optionalAccount.isEmpty()) {
+            throw new AccountNotFoundException("Account not found");
+        }
+
+        if (transaction.getType().equals("Extraction")) {
+            this.withdraw(transaction.getCbu(), transaction.getAmount());
+        }
+        if (transaction.getType().equals("Deposit")) {
+            this.deposit(transaction.getCbu(), transaction.getAmount());
+        }
+        return transactionRepository.save(transaction);
+    }
+
+    public Collection<Transaction> getTransactionsByCBU(Long cbu) {
+        return transactionRepository.findAllByCbu(cbu);
+    }
+
+    public Transaction getTransactionById(Long id) {
+        Optional<Transaction> transactionOptional = transactionRepository.findById(id);
+        if (transactionOptional.isPresent()) {
+            return transactionOptional.get();
+        } else {
+            throw new TransactionNotFoundException("Transaction not found");
+        }
+    }
+
+    public void deleteTransaction(Long id) {
+        Optional<Transaction> transactionOptional = transactionRepository.findById(id);
+        if (transactionOptional.isPresent()) {
+            transactionRepository.delete(transactionOptional.get());
+        } else {
+            throw new TransactionNotFoundException("Transaction not found");
+        }
+    }
 }
